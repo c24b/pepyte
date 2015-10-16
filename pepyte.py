@@ -1,9 +1,17 @@
+#/usr/bin/python3.4 env
+#coding: utf-8
 from bs4 import BeautifulSoup as bs
 import re
 import requests
 from urllib.parse import urlparse, urljoin
-
+import collections
 html_tags = re.compile("\s(.*?)=?\"(.*?)\"")
+
+open_tag = re.compile("<.*?>")
+classes = "(?P<id>.*?)=\"(?P<value>.*?)\""
+tags = re.compile("<(/)?(?P<tag>.*?)((\s|\n|\t).*?)?>")
+ids = re.compile("(\s|\t|\n)(?P<id>.*?)=?\"(?P<value>.*?)\"")
+
 SPACES = re.compile("\s|\t|\n")
 ESPACES = re.compile("^\s|^\t|^\n|\t$|\s$|\n$")
 MULTISPACES = re.compile("\s\s+")
@@ -21,7 +29,51 @@ class Scrapper(object):
         self.source = None
         self.soup = None
         self.project_name = project_name
+    
+    def __format__(self):
+        #print(self.soup.findAll("span"))
+        if self.has_source():
+            
+            #ici les tags a plat
+            tag_list = [n.group('tag') for n in re.finditer(tags, self.doc) if n is not None and not n.group('tag').startswith('!--') and n.group('tag') != 'script']
+            counter= collections.Counter(tag_list)
+            
+            commons_tags = {n[0]:n[1] for n in counter.most_common(20)}
+            #Les 20 tags les plus utilisé dans la page
+            tag_top_list = sorted(commons_tags, key=commons_tags.get(1))
+            tags_dict = collections.defaultdict.fromkeys(tag_top_list, [])
+            for tag in tag_top_list:
+                for html_chunk in self.soup.findAll(tag):
+                    open_t = re.match(open_tag, str(html_chunk))
+                    open_t =  re.sub("<"+tag+" ", "",str(open_t))
+                    test = [n for n in re.findall(classes, str(open_t)) if n is not None]
+                    print(test[0])
+                        
+                    
+            
+                        #tags_dict[tag] = [[n.group('id'),n.group('value')] for n in re.finditer(ids, str(html_chunk))]
+                        #print(tag, tags_dict[tag])
+            #~ for t, v in tags_dict.items():
+                #~ counter= [collections.Counter([n[0] for n in v]), collections.Counter([n[1] for n in v])]
+                #~ print(t, counter)
+                        #~ counter1= collections.Counter([n[0] for n in tags_dict[tag]])
+                        #~ print(tag, counter1.most_common(1))
+                        #~ counter2= collections.Counter([n[1] for n in tags_dict[tag]])
+                        #~ print(tag, counter2.most_common(1))
+                        #data = [{n.group('id'): n.group('value')} )]
+                    #data = [n for n in data if n != (None, None)]
+                
+                
+                
+                #get_list = [(n.group('id'), n.group('value')) for n in re.finditer(ids, self.doc) if (n.group('id'), n.group('value'))!=(None,None)]
+                #print(get_list)
+        else:
+            print("pass")
+        #if (n.group(1),n.group(2))!=(None,None)
+        #print(tag_list, get_list)
         
+            return 
+            
     def has_source(self):        
         '''Verify if source has been parsed'''
         if self.source is None:
@@ -57,9 +109,11 @@ class Scrapper(object):
                     return self.download(self.source)
                 else:
                     return self.read(self.source)
+            elif k == "lang":
+                self.lang = v
         else:
             raise MethodException
-            
+
     def __formatxpr__(self, tag_html='''<a target="_blank" href="https://twitter.com/Marmiton_org" onclick="recordInternalLinkGA('Reseaux sociaux', 'Twitter', document.location.href);" class="m_header_twitter" id="ctl00_m_CtrlNavigation_m_hTwitter"></a>'''):
         if tag_html == "" or tag_html == None:
             return (tag_html, None)
@@ -135,9 +189,29 @@ class Scrapper(object):
         setattr(self, "x"+target_name, result)
         return result
     
-    def internal_extract(**options):
-        raise NotImplementedError
-    
+    def get_inline(self, name ="data", html_tag='span', inline_value="class", multi=True, text=False):
+        '''method to extract value inside a tag'''
+        xpr = self.__formatxpr__(html_tag)
+        results = []
+        for n in self.soup.find_all(xpr[0]):
+            if multi:
+                try:
+                    results.append(n.get(str(inline_value)))
+                except:
+                    continue
+            else:
+                results.append(n.get(str(inline_value))[0])
+        #~ for link in soup.find_all('a'):
+            #~ print(link.get('href'))
+        setattr(self, "x"+name, results)
+        return results
+    def detect_html_pattern(self, html_tag="div"):
+        '''detect the more productive inline_tag for type detection
+        id_pattern or class_pattern'''
+        for n in self.soup.find_all(html_tag):
+            print(self.__formatxpr__(str(n)))
+            #print([(k, v) for k, v in n.__dict__.items()])
+        
         
     def export(self):
         '''export all extracted results in a dict'''
@@ -171,11 +245,21 @@ class Scrapper(object):
 
 if __name__ == "__main__":
     s = Scrapper("lemonde")
-    s.get(url="http://www.lemonde.fr/")
-    s.get_links('<a class="texte">')
-    s.get_title()
-    s.extract(comments='<div class="comment-body">', multi=True, text=False)
-    print(s.export())
+    s.get(url="http://www.lemonde.fr/", lang="fr")
+    #~ for n in s.get_inline(html_tag= "span", inline_value="class", multi=True):
+        #~ if n is not None:
+            #~ for i in n:
+                #~ print(i, s.extract(i='<span class="'+i+'">', multi=True, text=True)) 
+                #~ break
+            #~ break
+        #~ break
+    s.get(url="http://www.lemonde.fr/", lang="fr")
+    s.__format__()
+    #s.detect_html_pattern("div")
+    #~ s.get_links('<a class="texte">')
+    #~ s.get_title()
+    #~ s.extract(comments='<div class="comment-body">', multi=True, text=False)
+    #~ print(s.export())
     
         
 
